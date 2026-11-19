@@ -6,6 +6,14 @@ mod default_impls;
 mod sequence;
 mod structured;
 
+pub mod prelude {
+    pub use crate::Digestable;
+    pub use crate::Hasher as _;
+    pub use crate::StructuredHasher;
+    pub use crate::sequence::Hasher as _;
+    pub use crate::structured::Hasher as _;
+}
+
 #[must_use = "call finalize to get the hash value"]
 pub struct StructuredHasher<T: Digest + BlockSizeUser> {
     inner: T,
@@ -49,31 +57,12 @@ impl<T: Digest + BlockSizeUser> StructuredHasher<T> {
         self.item_count = next_count;
     }
 
-    fn add_item<I: Digestable + ?Sized>(&mut self, item: &I) {
+    pub fn add_item<I: Digestable + Sized>(&mut self, item: I) {
         item.digest(self);
     }
 
-    /// Adds a typed scalar, keeping payload bytes separate from structural tags.
-    pub fn digest_scalar(&mut self, bytes: &[u8]) {
-        self.add_raw_item(b"scalar");
-        self.add_raw_item(bytes);
-    }
-
-    pub fn digest_sequence(&mut self) -> DigestSequence<'_, T> {
-        self.add_raw_item(b"sequence");
-        DigestSequence { hasher: self }
-    }
-
-    /// Starts a struct. Names and field order are part of its encoding.
-    pub fn digest_struct(&mut self) -> DigestStruct<'_, T> {
-        self.add_raw_item(b"struct");
-        DigestStruct { hasher: self }
-    }
-
-    pub fn digest_enum(&mut self, variant: &str) -> DigestStruct<'_, T> {
-        self.add_raw_item(b"enum");
-        self.add_raw_item(variant.as_bytes());
-        DigestStruct { hasher: self }
+    fn add_item_with<F: FnOnce(&mut Self) -> Finished>(&mut self, f: F) {
+        f(self);
     }
 
     /// Consumes the sequence hasher and returns its digest.
@@ -110,9 +99,44 @@ impl<T: Digest + BlockSizeUser> StructuredHasher<T> {
     }
 }
 
+impl<T: Digest + BlockSizeUser> Hasher for StructuredHasher<T> {
+    /// Adds a typed scalar, keeping payload bytes separate from structural tags.
+    fn digest_scalar(&mut self, bytes: &[u8]) -> Finished {
+        self.add_raw_item(b"scalar");
+        self.add_raw_item(bytes);
+        Finished(())
+    }
+
+    fn digest_sequence(&mut self) -> impl sequence::Hasher {
+        self.add_raw_item(b"sequence");
+        DigestSequence { hasher: self }
+    }
+
+    /// Starts a struct. Names and field order are part of its encoding.
+    fn digest_struct(&mut self) -> impl structured::Hasher {
+        self.add_raw_item(b"struct");
+        DigestStruct { hasher: self }
+    }
+
+    fn digest_enum(&mut self, variant: &str) -> impl structured::Hasher {
+        self.add_raw_item(b"enum");
+        self.add_raw_item(variant.as_bytes());
+        DigestStruct { hasher: self }
+    }
+}
+
+pub trait Hasher {
+    fn digest_scalar(&mut self, bytes: &[u8]) -> Finished;
+    fn digest_sequence(&mut self) -> impl sequence::Hasher;
+    fn digest_struct(&mut self) -> impl structured::Hasher;
+    fn digest_enum(&mut self, variant: &str) -> impl structured::Hasher;
+}
+
+pub struct Finished(pub(crate) ());
+
 /// Encodes a value using typed scalars or finished struct builders.
 ///
 /// Implementations must use a stable encoding; raw items bypass this structure.
 pub trait Digestable {
-    fn digest<T: Digest + BlockSizeUser>(&self, hasher: &mut StructuredHasher<T>);
+    fn digest(&self, hasher: &mut impl Hasher) -> Finished;
 }
