@@ -3,6 +3,8 @@ name = "structured_digest"
 edition = "2024"
 version = "0.1.0"
 license = "MIT"
+description = "Structured hashing of Rust values using SequenceHash"
+repository = "https://github.com/acul009/structured_digest"
 
 [dependencies]
 digest = "^0.11.3"
