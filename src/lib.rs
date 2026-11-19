@@ -7,7 +7,7 @@ mod sequence;
 mod structured;
 
 pub mod prelude {
-    pub use crate::Digestable;
+    pub use crate::Digestible;
     pub use crate::Hasher as _;
     pub use crate::StructuredHasher;
     pub use crate::sequence::Hasher as _;
@@ -57,7 +57,7 @@ impl<T: Digest + BlockSizeUser> StructuredHasher<T> {
         self.item_count = next_count;
     }
 
-    pub fn add_item<I: Digestable + Sized>(&mut self, item: I) {
+    pub fn add_item<I: Digestible + Sized>(&mut self, item: I) {
         item.digest(self);
     }
 
@@ -137,6 +137,6 @@ pub struct Finished(pub(crate) ());
 /// Encodes a value using typed scalars or finished struct builders.
 ///
 /// Implementations must use a stable encoding; raw items bypass this structure.
-pub trait Digestable {
+pub trait Digestible {
     fn digest(&self, hasher: &mut impl Hasher) -> Finished;
 }
