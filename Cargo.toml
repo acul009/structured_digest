@@ -1,0 +1,8 @@
+[package]
+name = "structured_digest"
+edition = "2024"
+version = "0.1.0"
+license = "MIT"
+
+[dependencies]
+digest = "^0.11.3"
